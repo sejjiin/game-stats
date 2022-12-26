@@ -149,9 +149,6 @@ def get_friendless(plays: list[int], precision: int) -> dict[str, float]:
        'utilization': .65}
 
     """
-    avg_cdf = __get_avg_cdf(plays, LAMBDA_FRIENDLESS)
-
-def get_friendless_basic(plays):
     plays_heavy = len(list(filter(lambda x: x >= 10, plays)))
     plays_none = len(list(filter(lambda x: x == 0, plays)))
     plays_asc = sorted(plays)
@@ -164,6 +161,7 @@ def get_friendless_basic(plays):
     else:
         friendless_metric = plays_asc[plays_heavy]
 
+    avg_cdf = __get_avg_cdf(plays, LAMBDA_FRIENDLESS)
     continuous_friendless = round(__get_inverse_cdf(
         avg_cdf, LAMBDA_FRIENDLESS), precision)
     utilization = round(avg_cdf, precision)
@@ -192,7 +190,6 @@ def get_baseless_next_plays(games: list[Game]):
         # baseless_mean_recency = stat.get_baseless_mean_recency_score()
         baseless_frecency = __get_baseless_frecency_score(game.plays)
         baseless_age_adjusted_plays = sum(
-            map(__get_baseless_recency, game.plays))
             map(__get_baseless_recency, game.plays))
 
         # next_play_baseless_frecency = stat.get_next_play_baseless_frecency_score()
@@ -355,17 +352,44 @@ def __get_plays_cumulative_days_old(plays: list[datetime]) -> float:
         delta = datetime.today() - play
         result += delta.days
     return result
+
 # --------------------------------
-# ------------------------------------------------------------------------------
 # PRIVATE BGG XMLAPI METHODS
 # --------------------------------
+
+def __urlopen_retry(url):
+    response = __urlopen(url)
+    retries = 0
+    while ((response['code'] == 202 or response['code'] == 429) and retries <= 3):
+        retries += 1
+        sleep_time = math.pow(2, retries - 1)
+        print(f'sleeping for {sleep_time} seconds')
+        time.sleep(sleep_time)
+        response = __urlopen(url)
+    return response['response']
+
+
+def __urlopen(url):
+    result = {}
+    try:
+        response = urlopen(url)
+        result['response'] = response
+        result['code'] = response.code
+    except HTTPError as err:
+        if err.code == 429:
+            result['code'] = 429
+        else:
+            raise
+    return result
+
+
+def __get_dom(response):
+    contents = response.read()
+    contents_str = contents.decode('utf-8')
+    return parseString(contents_str)
+
 def __download_bgg_plays_xml(username, page):
     url = f"{BGG_API}/plays?username={username}&excludesubtype=boardgameexpansion&page={page}"
     response = __urlopen_retry(url)
     dom = __get_dom(response)
     return dom.getElementsByTagName('play')
-    # legacy algorithm: return h_index + 1.5 * baseless_frecency_sum
-
-#             sorted_subset = sorted_subset[:last_x_plays]
-#                 sorted_subset) / len(sorted_subset)
-
