@@ -253,7 +253,7 @@ def __get_baseless_frecency_score(play_dates: list[datetime]) -> float:
 def __get_baseless_recency(play_date: datetime) -> float:
     delta = datetime.today() - play_date
     play_age_in_years = delta.days / 365.25
-    return math.exp(-.03 * math.pow(play_age_in_years, 2))
+    return math.exp(-.04 * math.pow(play_age_in_years, 2))
 
 
 def __get_baseless_frequency_score(num_plays: float) -> float:
@@ -358,6 +358,7 @@ def __get_plays_cumulative_days_old(plays: list[datetime]) -> float:
 # --------------------------------
 
 def __urlopen_retry(url):
+    print(f'Calling {url}')
     response = __urlopen(url)
     retries = 0
     while ((response['code'] == 202 or response['code'] == 429) and retries <= 3):

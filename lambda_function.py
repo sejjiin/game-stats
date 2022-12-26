@@ -16,7 +16,7 @@ def lambda_handler(event, context):
     return stats
 
 
-def get_stats(username, max_next_play_results):
+def get_stats(username: str, max_next_play_results: int):
     games = baseless.download_games(username)
 
     owned_games = list(filter(lambda game: game.is_owned, games))
@@ -39,4 +39,7 @@ def get_stats(username, max_next_play_results):
 
 
 if len(sys.argv) > 1:
-    print(json.dumps(get_stats(sys.argv[1], 99), indent=2))
+    if len(sys.argv) > 2:
+        print(json.dumps(get_stats(sys.argv[1], int(sys.argv[2])), indent=2))
+    else:
+        print(json.dumps(get_stats(sys.argv[1], 99), indent=2))
