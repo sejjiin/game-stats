@@ -16,6 +16,7 @@ LAMBDA_FRIENDLESS = 0.2303
 # CLASSES
 # ------------------------------------------------------------------------------
 
+
 @dataclass
 class Game:
     """
@@ -147,7 +148,6 @@ def get_friendless(plays: list[int], precision: int) -> dict[str, float]:
       {'friendlessMetric': 3,
        'continuousFriendlessMetric': 4.53,
        'utilization': .65}
-
     """
     plays_heavy = len(list(filter(lambda x: x >= 10, plays)))
     plays_none = len(list(filter(lambda x: x == 0, plays)))
@@ -171,6 +171,15 @@ def get_friendless(plays: list[int], precision: int) -> dict[str, float]:
 
 
 def get_baseless_next_plays(games: list[Game]):
+    """Calculates the effect of playing a specific game on baseless stats.
+
+    Args:
+        plays: a list of Games.
+
+    Returns:
+      A list of dictionaries where each entry represents the baseless-metric
+      effect of playing the game represented by that dictionary.
+    """
     result = []
     # h_index = get_h_index(__get_plays(baseless_stats))
     # h_index_cusp_games = __get_h_index_cusp_games(baseless_stats, h_index)
