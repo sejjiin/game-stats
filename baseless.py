@@ -1,3 +1,5 @@
+"""Provides statistics on boardgamegeek(bgg) game collections and logged plays.
+"""
 import collections
 import copy
 import math
