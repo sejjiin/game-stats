@@ -43,5 +43,3 @@ if len(sys.argv) > 1:
         print(json.dumps(get_stats(sys.argv[1], int(sys.argv[2])), indent=2))
     else:
         print(json.dumps(get_stats(sys.argv[1], 99), indent=2))
-else:
-    print(json.dumps(get_stats('fuddman', 0), indent=2))
