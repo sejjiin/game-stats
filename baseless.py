@@ -60,12 +60,19 @@ def download_games(username: str) -> list[Game]:
     first_page = __download_bgg_plays(username, 1)
     first_dom = parseString(first_page)
     root = first_dom.getElementsByTagName('plays')[0]
-    total_pages = int(int(root.getAttribute('total')) / 100)
+
+    # total pages will be the totals plays / page size (100) + 1
+    # additional page for the sub-100 remainder.
+    total_pages = int(int(root.getAttribute('total')) / 100) + 1
     plays = [first_page]
+
+    # Create a function with partial arguments to allow for multiple args to be
+    # passed to the target function via the thread pool executor map function.
     func = partial(__download_bgg_plays, username)
 
     with ThreadPoolExecutor(max_workers=5) as executor:
-        results = executor.map(func, range(2, total_pages))
+        # total_page +1 because end param is exclusive
+        results = executor.map(func, range(2, total_pages + 1))
         for result in results:
             plays.append(result)
 
@@ -81,6 +88,7 @@ def download_games(username: str) -> list[Game]:
             date_str = play_dom.getAttribute('date')
             date = datetime.strptime(date_str, '%Y-%m-%d')
 
+            # Handle play entries that encompass multiple plays.
             i = 0
             while i < play_quantity:
                 game.plays.append(date)
