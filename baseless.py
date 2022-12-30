@@ -10,6 +10,8 @@ from datetime import datetime
 from typing import Dict
 from urllib.request import HTTPError, urlopen
 from xml.dom.minidom import parseString
+from functools import partial
+from concurrent.futures import ThreadPoolExecutor
 
 BGG_API = 'https://boardgamegeek.com/xmlapi2'
 LAMBDA_FRIENDLESS = 0.2303
@@ -43,8 +45,7 @@ def download_games(username: str) -> list[Game]:
     """
     # Download games
     url = f"{BGG_API}/collection?username={username}&brief=1&excludesubtype=boardgameexpansion"
-    response = __urlopen_retry(url)
-    dom = __get_dom(response)
+    dom = parseString(__urlopen_retry(url))
     games: Dict[int, Game] = {}
     for item in dom.getElementsByTagName('item'):
         game_id = item.getAttribute('objectid')
@@ -56,26 +57,34 @@ def download_games(username: str) -> list[Game]:
             games[game_id] = Game(game_id, name, is_owned, is_prev_owned, [])
 
     # Download plays
-    page = 1
-    xml_plays = __download_bgg_plays_xml(username, page)
-    while xml_plays.length > 0:
-        for xml_play in xml_plays:
-            play_quantity = int(xml_play.getAttribute('quantity'))
-            item = xml_play.getElementsByTagName('item')[0]
+    first_page = __download_bgg_plays(username, 1)
+    first_dom = parseString(first_page)
+    root = first_dom.getElementsByTagName('plays')[0]
+    total_pages = int(int(root.getAttribute('total')) / 100)
+    plays = [first_page]
+    func = partial(__download_bgg_plays, username)
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        results = executor.map(func, range(2, total_pages))
+        for result in results:
+            plays.append(result)
+
+    for play in plays:
+        dom = parseString(play)
+        for play_dom in dom.getElementsByTagName('play'):
+            play_quantity = int(play_dom.getAttribute('quantity'))
+            item = play_dom.getElementsByTagName('item')[0]
             object_id = item.getAttribute('objectid')
             if object_id not in games:
                 continue
             game = games[object_id]
-            date_str = xml_play.getAttribute('date')
+            date_str = play_dom.getAttribute('date')
             date = datetime.strptime(date_str, '%Y-%m-%d')
 
             i = 0
             while i < play_quantity:
                 game.plays.append(date)
                 i = i + 1
-
-        page = page + 1
-        xml_plays = __download_bgg_plays_xml(username, page)
 
     return list(map(lambda k: games[k], games.keys()))
 
@@ -252,6 +261,7 @@ def get_baseless_optimum_size(play_dates: list[list[datetime]]) -> float:
 # PRIVATE STATISTIC METHODS
 # ------------------------------------------------------------------------------
 
+
 def __get_baseless_frecency_score(play_dates: list[datetime]) -> float:
     """Return a composite score based on both the frequency and recency of each play."""
 
@@ -285,6 +295,7 @@ def __get_cdf(x_var, _lambda):
     """
     return 1.0 - math.exp(-_lambda * float(x_var))
 
+
 def __get_ccdf(x_var, rate):
     """Gets the results of a complementary exponential distributed cumulative distribution function
 
@@ -311,7 +322,8 @@ def __get_h_index_cusp_games(baseless_stats, h_index):
 
     # Extract # of games at each play count. The resulting
     # key-value structure is play-count:number-of-games-with-that-play-count
-    counter = collections.Counter(list(map(lambda stat: int(len(stat.plays)), baseless_stats)))
+    counter = collections.Counter(
+        list(map(lambda stat: int(len(stat.plays)), baseless_stats)))
 
     play_counts = list(counter.keys())
     for play_count in play_counts:
@@ -347,6 +359,7 @@ def __group_by_plays(baseless_stats):
         result[num_plays].append(stat)
     return result
 
+
 def __get_avg_cdf(plays, _lambda):
     cdf_list = map(lambda x: __get_cdf(x, _lambda), plays)
     return statistics.mean(cdf_list)
@@ -368,40 +381,38 @@ def __get_plays_cumulative_days_old(plays: list[datetime]) -> float:
 # PRIVATE BGG XMLAPI METHODS
 # --------------------------------
 
-def __urlopen_retry(url):
+
+def __urlopen_retry(url: str) -> str:
     print(f'Calling {url}')
-    response = __urlopen(url)
+    response, code = __urlopen(url)
     retries = 0
-    while ((response['code'] == 202 or response['code'] == 429) and retries <= 2):
+    while (code in (202, 429) and retries <= 2):
         retries += 1
         sleep_time = math.pow(2, retries)
-        print(f'sleeping for {sleep_time} seconds')
+        print(f'sleeping for {sleep_time} seconds for {url}')
         time.sleep(sleep_time)
-        response = __urlopen(url)
-    return response['response']
+        response, code = __urlopen(url)
+
+    if code == 202:
+        raise Exception(f"Timeout waiting for {url} to be processed.")
+    if code == 429:
+        raise Exception("Too many requests")
+    print(f'Received {code} for {url}')
+    return response
 
 
-def __urlopen(url):
-    result = {}
+def __urlopen(url: str) -> tuple[str, int]:
     try:
         response = urlopen(url)
-        result['response'] = response
-        result['code'] = response.code
+        return response.read().decode('utf-8'), response.code
     except HTTPError as err:
         if err.code == 429:
-            result['code'] = 429
+            return '', 429
         else:
             raise
-    return result
+    return '', 429
 
 
-def __get_dom(response):
-    contents = response.read()
-    contents_str = contents.decode('utf-8')
-    return parseString(contents_str)
-
-def __download_bgg_plays_xml(username, page):
+def __download_bgg_plays(username: str, page: int) -> str:
     url = f"{BGG_API}/plays?username={username}&excludesubtype=boardgameexpansion&page={page}"
-    response = __urlopen_retry(url)
-    dom = __get_dom(response)
-    return dom.getElementsByTagName('play')
+    return __urlopen_retry(url)
