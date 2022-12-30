@@ -372,9 +372,9 @@ def __urlopen_retry(url):
     print(f'Calling {url}')
     response = __urlopen(url)
     retries = 0
-    while ((response['code'] == 202 or response['code'] == 429) and retries <= 3):
+    while ((response['code'] == 202 or response['code'] == 429) and retries <= 2):
         retries += 1
-        sleep_time = math.pow(2, retries - 1)
+        sleep_time = math.pow(2, retries)
         print(f'sleeping for {sleep_time} seconds')
         time.sleep(sleep_time)
         response = __urlopen(url)
