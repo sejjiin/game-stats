@@ -60,8 +60,8 @@ def download_games(username: str) -> list[Game]:
     first_dom = parseString(first_page)
     root = first_dom.getElementsByTagName('plays')[0]
 
-    # total pages will be the totals plays / page size (100) + 1
-    # additional page for the sub-100 remainder.
+    # total pages will be the totals plays / page size (100)
+    # + 1 additional page for the sub-100 remainder.
     total_pages = int(int(root.getAttribute('total')) / 100) + 1
     plays = [first_page]
 
@@ -85,7 +85,11 @@ def download_games(username: str) -> list[Game]:
                 continue
             game = games[object_id]
             date_str = play_dom.getAttribute('date')
-            date = datetime.strptime(date_str, '%Y-%m-%d')
+            try:
+                date = datetime.strptime(date_str, '%Y-%m-%d')
+            except ValueError:
+                print(f"{game.game_name} has invalid play date of {date_str}. Ignoring play entry.")
+                continue
 
             # Handle play entries that encompass multiple plays.
             i = 0
@@ -213,16 +217,13 @@ def get_baseless_next_plays(games: list[Game]):
             obj['meanPlayAgeYears'] = round(__get_plays_cumulative_days_old(
                 game.plays) / len(game.plays) / 365.25, 2)
 
-        # baseless_frequency = stat.get_baseless_frequency_score()
-        # baseless_mean_recency = stat.get_baseless_mean_recency_score()
         baseless_frecency = __get_baseless_frecency_score(game.plays)
         baseless_age_adjusted_plays = sum(
             map(__get_baseless_recency, game.plays))
 
-        # next_play_baseless_frecency = stat.get_next_play_baseless_frecency_score()
-
         baseless = {}
         obj['baseless'] = baseless
+        # baseless_mean_recency = stat.get_baseless_mean_recency_score()
         # baseless['meanRecency'] = round(baseless_mean_recency, 2)
         baseless['ageAdjustedPlays'] = round(baseless_age_adjusted_plays, 2)
         baseless['frecency'] = round(baseless_frecency, 3)
@@ -241,12 +242,12 @@ def get_baseless_next_plays(games: list[Game]):
                 else g.plays, games))
         next_play_optimum_size = get_baseless_optimum_size(
             adjusted_list_of_plays)
-        baseless['optimumSizeGain'] = round(
-            next_play_optimum_size - optimum_size, 3)
 
         next_play_frecency = __get_baseless_frecency_score(adjusted_plays)
         baseless['frecencyGain'] = round(
             next_play_frecency - baseless_frecency, 3)
+        baseless['optimumSizeGain'] = round(
+            next_play_optimum_size - optimum_size, 3)
 
         result.append(obj)
 
@@ -327,7 +328,7 @@ def __get_ccdf(x_var, rate):
 
 def __get_h_index_cusp_games(baseless_stats, h_index):
     """
-    Returns game IDs that will result in an h-index increase on its next play
+    Returns game IDs that will result in an h-index increase on its next play.
     """
     result = []
     stats_by_plays = __group_by_plays(baseless_stats)
@@ -400,10 +401,10 @@ def __urlopen_retry(url: str) -> str:
     while (code in (202, 429) and retries <= 2):
 
         # sleep 2, 4, 8 seconds for a 202
-        # always sleep for 5 seconds for a 429
+        # always sleep for 10 seconds for a 429
         retries += 1
-        sleep_time = math.pow(2, retries) if code == 202 else 5
-        print(f'{url} - sleeping for {sleep_time} seconds')
+        sleep_time = math.pow(2, retries) if code == 202 else 10
+        print(f'{url} - sleeping for {sleep_time}s (#{retries}).')
         time.sleep(sleep_time)
 
         response, code = __urlopen(url)
