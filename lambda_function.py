@@ -5,6 +5,7 @@ import baseless
 
 
 def lambda_handler(event, context):
+    """Entry point for AWS Lambda"""
     username = event['username']
     max_baseless_results = 99
     if 'maxBaselessResults' in event:

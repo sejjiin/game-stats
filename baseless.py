@@ -1,17 +1,16 @@
 """Provides statistics on boardgamegeek(bgg) game collections and logged plays.
 """
 import collections
-import copy
 import math
 import statistics
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from typing import Dict
 from urllib.request import HTTPError, urlopen
 from xml.dom.minidom import parseString
-from functools import partial
-from concurrent.futures import ThreadPoolExecutor
 
 BGG_API = 'https://boardgamegeek.com/xmlapi2'
 LAMBDA_FRIENDLESS = 0.2303
@@ -232,17 +231,22 @@ def get_baseless_next_plays(games: list[Game]):
         # if stat.game.game_id in h_index_cusp_games:
         #     new_h_index += 1
 
-        games_copy = copy.deepcopy(games)
-        game_copy = list(filter(
-            lambda game_copy, game_id=game.game_id: game_copy.game_id == game_id, games_copy))[0]
-        game_copy.plays.append(datetime.now())
-        next_play_games = list(map(lambda game: game.plays, games_copy))
-        next_play_optimum_size = get_baseless_optimum_size(next_play_games)
-        next_play_frecency = __get_baseless_frecency_score(game_copy.plays)
-        baseless['frecencyGain'] = round(
-            next_play_frecency - baseless_frecency, 3)
+        # Add a game play date of now to this game's plays to calculate
+        # its effect on optimum collection size.
+        adjusted_plays = game.plays.copy()
+        adjusted_plays.append(datetime.now())
+        adjusted_list_of_plays = list(
+            map(lambda g, game_id=game.game_id, adjusted=adjusted_plays:
+                adjusted if g.game_id == game_id
+                else g.plays, games))
+        next_play_optimum_size = get_baseless_optimum_size(
+            adjusted_list_of_plays)
         baseless['optimumSizeGain'] = round(
             next_play_optimum_size - optimum_size, 3)
+
+        next_play_frecency = __get_baseless_frecency_score(adjusted_plays)
+        baseless['frecencyGain'] = round(
+            next_play_frecency - baseless_frecency, 3)
 
         result.append(obj)
 
@@ -391,34 +395,38 @@ def __get_plays_cumulative_days_old(plays: list[datetime]) -> float:
 
 
 def __urlopen_retry(url: str) -> str:
-    print(f'Calling {url}')
     response, code = __urlopen(url)
     retries = 0
     while (code in (202, 429) and retries <= 2):
+
+        # sleep 2, 4, 8 seconds for a 202
+        # always sleep for 5 seconds for a 429
         retries += 1
-        sleep_time = math.pow(2, retries)
-        print(f'sleeping for {sleep_time} seconds for {url}')
+        sleep_time = math.pow(2, retries) if code == 202 else 5
+        print(f'{url} - sleeping for {sleep_time} seconds')
         time.sleep(sleep_time)
+
         response, code = __urlopen(url)
 
     if code == 202:
         raise Exception(f"Timeout waiting for {url} to be processed.")
     if code == 429:
         raise Exception("Too many requests")
-    print(f'Received {code} for {url}')
     return response
 
 
 def __urlopen(url: str) -> tuple[str, int]:
+    print(f'{url} - urlopen')
     try:
         response = urlopen(url)
+        print(f'{url} - {response.code} received')
         return response.read().decode('utf-8'), response.code
     except HTTPError as err:
+        print(f'{url} - error {err.code} received')
         if err.code == 429:
             return '', 429
         else:
             raise
-    return '', 429
 
 
 def __download_bgg_plays(username: str, page: int) -> str:
