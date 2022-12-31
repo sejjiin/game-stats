@@ -18,21 +18,24 @@ def lambda_handler(event, context):
 
 
 def get_stats(username: str, max_next_play_results: int):
+
+    # includes owned and previously owned
     games = baseless.download_games(username)
+    plays = list(map(lambda game: game.plays, games))
 
     owned_games = list(filter(lambda game: game.is_owned, games))
-    plays = list(map(lambda game: game.plays, games))
+    owned_plays = list(map(lambda game: game.plays, owned_games))
     owned_play_counts = list(map(lambda game: len(game.plays), owned_games))
 
     output = {}
-    output['baseStats'] = baseless.get_base_stats(owned_play_counts, 2)
-    output['coins'] = baseless.get_coins(owned_play_counts)
-    output['currentSize'] = len(owned_games)
+    output['collectionSize'] = len(owned_games)
+    output['baselessStats'] = {}
+    output['baselessStats']['optimumCollectionSize'] = round(baseless.get_baseless_optimum_size(
+        plays), 2)
+    output['baselessStats']['averageOwnedFrecency'] = round(baseless.get_baseless_optimum_size(
+        owned_plays), 3)
 
-    output['baselessOptimumSize'] = round(
-        baseless.get_baseless_optimum_size(plays), 2)
-    # output['baselessMeanFrecencyScore'] = round(
-    #     baseless.get_mean_baseless_frecency_score(baseless_stats), 3)
+    output['baseStats'] = baseless.get_base_stats(owned_play_counts, 2)
     output['friendlessStats'] = baseless.get_friendless(owned_play_counts, 2)
     output['baselessNextPlays'] = baseless.get_baseless_next_plays(owned_games)[
         :max_next_play_results]

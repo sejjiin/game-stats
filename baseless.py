@@ -60,9 +60,8 @@ def download_games(username: str) -> list[Game]:
     first_dom = parseString(first_page)
     root = first_dom.getElementsByTagName('plays')[0]
 
-    # total pages will be the totals plays / page size (100)
-    # + 1 additional page for the sub-100 remainder.
-    total_pages = int(int(root.getAttribute('total')) / 100) + 1
+    # total pages is the totals plays / page size (100) rounded up
+    total_pages = math.ceil(int(root.getAttribute('total')) / 100)
     plays = [first_page]
 
     # Create a function with partial arguments to allow for multiple args to be
@@ -88,7 +87,8 @@ def download_games(username: str) -> list[Game]:
             try:
                 date = datetime.strptime(date_str, '%Y-%m-%d')
             except ValueError:
-                print(f"{game.game_name} has invalid play date of {date_str}. Ignoring play entry.")
+                print(
+                    f"{game.game_name} has invalid play date of {date_str}. Ignoring play entry.")
                 continue
 
             # Handle play entries that encompass multiple plays.
@@ -109,8 +109,9 @@ def get_base_stats(plays: list[int], precision: int) -> Dict[str, float]:
     """
     mean = statistics.mean(plays)
     median = statistics.median(plays)
-    _h_index = get_h_index(plays)
-    return {'mean': round(mean, precision), 'median': median, 'h-index': _h_index}
+    h_index = get_h_index(plays)
+    return {'meanPlays': round(mean, precision), 'medianPlays': median, 'h-index': h_index,
+            'coins': get_coins(plays)}
 
 
 def get_coins(plays: list[int]) -> dict[str, int]:
@@ -125,13 +126,13 @@ def get_coins(plays: list[int]) -> dict[str, int]:
     nickels = 0
     dimes = 0
     quarters = 0
-    halves = 0
+    half_dollar = 0
     dollars = 0
     for play in plays:
         if play >= 100:
             dollars += 1
         elif play >= 50:
-            halves += 1
+            half_dollar += 1
         elif play >= 25:
             quarters += 1
         elif play >= 10:
@@ -140,7 +141,7 @@ def get_coins(plays: list[int]) -> dict[str, int]:
             nickels += 1
 
     return {'nickels': nickels, 'dimes': dimes, 'quarters': quarters,
-            'halves': halves, 'dollars': dollars}
+            'half-dollars': half_dollar, 'dollars': dollars}
 
 
 def get_h_index(plays: list[int]) -> int:
@@ -255,7 +256,7 @@ def get_baseless_next_plays(games: list[Game]):
 
 
 def get_baseless_optimum_size(play_dates: list[list[datetime]]) -> float:
-    """Returns an optimum game collection size based on baseless statistics.
+    """Returns baseless stats optimum game collection size.
 
     Args:
         play_dates: a list of lists of plays where each list of plays represent dates of
@@ -269,6 +270,20 @@ def get_baseless_optimum_size(play_dates: list[list[datetime]]) -> float:
     # legacy algorithm: return h_index + 1.5 * baseless_frecency_sum
 
     return 2 * sum(map(__get_baseless_frecency_score, play_dates))
+
+def get_baseless_mean_frecency(play_dates: list[list[datetime]]) -> float:
+    """Returns baseless stats mean frecency.
+
+    Args:
+        play_dates: a list of lists of plays where each list of plays represent dates of
+            plays of a distinct game. For example:
+
+            Outer list item 0: [[2020-12-3],[2021-3-23],[2021-4-18]] --- dates Codenames was played
+            Outer list item 1: [[2021-07-03],[2021-07-04]] --- dates Ticket to Ride was played
+            Outer list item 2: [[2022-11-01],[2019-05-18]] --- dates Settler of Catan was played
+    """
+
+    return statistics.mean(list(map(__get_baseless_frecency_score, play_dates)))
 
 # ------------------------------------------------------------------------------
 # PRIVATE STATISTIC METHODS
