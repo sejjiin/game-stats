@@ -32,7 +32,7 @@ def get_stats(username: str, max_next_play_results: int):
     output['baselessStats'] = {}
     output['baselessStats']['optimumCollectionSize'] = round(baseless.get_baseless_optimum_size(
         plays), 2)
-    output['baselessStats']['averageOwnedFrecency'] = round(baseless.get_baseless_optimum_size(
+    output['baselessStats']['averageOwnedFrecency'] = round(baseless.get_baseless_mean_frecency(
         owned_plays), 3)
 
     output['baseStats'] = baseless.get_base_stats(owned_play_counts, 2)
