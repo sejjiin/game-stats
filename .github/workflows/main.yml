@@ -10,7 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Deploy code to Lambda
-      uses: mariamf/py-lambda-action@master
+      uses: mariamrf/py-lambda-action@master
       with:
         lambda_function_name: 'game-stats'
       env:
