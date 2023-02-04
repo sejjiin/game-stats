@@ -13,7 +13,7 @@ jobs:
       uses: mariamrf/py-lambda-action@master
       with:
         lambda_function_name: 'game-stats'
-        lambda_layer_arn: 'arn:aws:lambda:us-east-2:728743619870:layer:AWS-AppConfig-Extension:59'
+        lambda_layer_arn: 'arn:aws:lambda:us-east-2:728743619870:layer:AWS-AppConfig-Extension'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
